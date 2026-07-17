@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioSecure Data Vault | Enterprise Biometric Data Management</title>
+    <meta name="description" content="Secure biometric personal data management system with iris and fingerprint authentication">
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Custom Theme -->
+    <link rel="stylesheet" href="assets/css/biosecure-theme.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        .password-strength {
+            height: 4px;
+            border-radius: 2px;
+            margin-top: 0.5rem;
+            background: rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+        .password-strength-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        .strength-weak { width: 33%; background: #ef4444; }
+        .strength-medium { width: 66%; background: #f59e0b; }
+        .strength-strong { width: 100%; background: #10b981; }
+
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+            transition: all var(--transition-fast);
+            cursor: pointer;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--primary-500);
+            background: rgba(0, 191, 255, 0.05);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 2rem;
+            padding-bottom: 1.5rem;
+            border-left: 2px solid var(--border-color);
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--primary-500);
+        }
+        .timeline-item:last-child { border-left: 2px solid transparent; }
+
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.25rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 1024px) {
+            .mobile-menu-btn { display: block; }
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        .sidebar-overlay.active { display: block; }
+    </style>
+</head>
+<body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="spinner"></div>
+        <p class="loading-text" id="loadingText">Processing...</p>
+    </div>
+
+    <!-- AUTH SCREENS -->
+    <div id="authScreens">
+        <!-- LOGIN SCREEN -->
+        <div id="loginScreen" class="auth-page">
+            <div class="auth-container">
+                <div class="auth-logo">
+                    <i class="fas fa-shield-halved"></i>
+                    <h1 class="text-gradient">BIOSECURE</h1>
+                    <p>Enterprise Biometric Data Vault</p>
+                </div>
+
+                <div class="auth-card">
+                    <h2>Secure Login</h2>
+
+                    <div class="auth-steps" id="loginSteps">
+                        <div class="auth-step active" data-step="1"><i class="fas fa-user"></i><span>Identity</span></div>
+                        <div class="auth-step" data-step="2"><i class="fas fa-eye"></i><span>Iris</span></div>
+                        <div class="auth-step" data-step="3"><i class="fas fa-fingerprint"></i><span>Fingerprint</span></div>
+                        <div class="auth-step" data-step="4"><i class="fas fa-check"></i><span>Access</span></div>
+                    </div>
+
+                    <!-- Step 1: Username -->
+                    <div id="loginStep1">
+                        <form id="loginFormStep1" onsubmit="handleLoginStep1(event)">
+                            <div class="form-group">
+                                <label class="form-label">Username or Email</label>
+                                <input type="text" class="form-control" id="loginUsername" placeholder="Enter your username" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password</label>
+                                <input type="password" class="form-control" id="loginPassword" placeholder="Enter your password" required>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <label class="d-flex align-items-center gap-2" style="cursor: pointer;">
+                                    <input type="checkbox" id="rememberMe" style="accent-color: var(--primary-500);">
+                                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Remember me</span>
+                                </label>
+                                <a href="#" onclick="showForgotPassword()" style="font-size: 0.85rem; color: var(--primary-400);">Forgot Password?</a>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-arrow-right"></i> Continue to Biometric Auth
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Step 2: Iris Scan -->
+                    <div id="loginStep2" style="display: none;">
+                        <div class="text-center mb-4">
+                            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Position your eye in front of the camera for iris scanning</p>
+                            <div class="biometric-scanner mb-3">
+                                <div class="scanner-ring"></div>
+                                <div class="scanner-ring"></div>
+                                <div class="scanner-ring"></div>
+                                <div class="scanner-laser"></div>
+                                <i class="fas fa-eye" style="font-size: 3rem; color: var(--accent-400); z-index: 1;"></i>
+                            </div>
+                            <p class="mono" style="color: var(--accent-400); font-size: 0.85rem;">
+                                <i class="fas fa-circle-notch fa-spin"></i> Scanning iris pattern...
+                            </p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline flex-fill" onclick="goToLoginStep(1)"><i class="fas fa-arrow-left"></i> Back</button>
+                            <button class="btn btn-accent flex-fill" onclick="simulateIrisScan()"><i class="fas fa-eye"></i> Simulate Iris Scan</button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Fingerprint -->
+                    <div id="loginStep3" style="display: none;">
+                        <div class="text-center mb-4">
+                            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Place your finger on the biometric scanner</p>
+                            <div class="fingerprint-scan active mb-3">
+                                <div class="fingerprint-lines"></div>
+                                <i class="fas fa-fingerprint fingerprint-icon"></i>
+                            </div>
+                            <p class="mono" style="color: var(--accent-400); font-size: 0.85rem;">
+                                <i class="fas fa-circle-notch fa-spin"></i> Analyzing fingerprint ridges...
+                            </p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline flex-fill" onclick="goToLoginStep(2)"><i class="fas fa-arrow-left"></i> Back</button>
+                            <button class="btn btn-accent flex-fill" onclick="simulateFingerprintScan()"><i class="fas fa-fingerprint"></i> Simulate Fingerprint</button>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: 2FA -->
+                    <div id="loginStep4" style="display: none;">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-shield-halved" style="font-size: 3rem; color: var(--success); margin-bottom: 1rem;"></i>
+                            <h3 style="color: var(--success);">Biometric Verified!</h3>
+                            <p style="color: var(--text-muted);">Enter your 2FA code to complete authentication</p>
+                        </div>
+                        <form onsubmit="handle2FAVerification(event)">
+                            <div class="form-group">
+                                <label class="form-label">Authentication Code</label>
+                                <div class="d-flex gap-2 justify-content-center">
+                                    <input type="text" class="form-control text-center" maxlength="1" style="width: 50px; font-size: 1.5rem;" oninput="moveToNext(this, 0)">
+                                    <input type="text" class="form-control text-center" maxlength="1" style="width: 50px; font-size: 1.5rem;" oninput="moveToNext(this, 1)">
+                                    <input type="text" class="form-control text-center" maxlength="1" style="width: 50px; font-size: 1.5rem;" oninput="moveToNext(this, 2)">
+                                    <input type="text" class="form-control text-center" maxlength="1" style="width: 50px; font-size: 1.5rem;" oninput="moveToNext(this, 3)">
+                                    <input type="text" class="form-control text-center" maxlength="1" style="width: 50px; font-size: 1.5rem;" oninput="moveToNext(this, 4)">
+                                    <input type="text" class="form-control text-center" maxlength="1" style="width: 50px; font-size: 1.5rem;" oninput="moveToNext(this, 5)">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 mt-3"><i class="fas fa-unlock"></i> Verify & Access Vault</button>
+                        </form>
+                        <div class="text-center mt-3">
+                            <button class="btn btn-sm btn-outline" onclick="useBackupCode()"><i class="fas fa-key"></i> Use Backup Code</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="auth-footer">
+                    <p>Don't have an account? <a href="#" onclick="showRegister()">Register Now</a></p>
+                    <p style="margin-top: 0.5rem; font-size: 0.75rem; opacity: 0.6;">
+                        <i class="fas fa-lock"></i> AES-256 Encrypted | SOC 2 Compliant | GDPR Ready
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- REGISTRATION SCREEN -->
+        <div id="registerScreen" class="auth-page" style="display: none;">
+            <div class="auth-container" style="max-width: 700px;">
+                <div class="auth-logo">
+                    <i class="fas fa-shield-halved"></i>
+                    <h1 class="text-gradient">BIOSECURE</h1>
+                    <p>Create Your Secure Account</p>
+                </div>
+
+                <div class="auth-card">
+                    <h2>User Registration</h2>
+
+                    <div class="progress-bar mb-4">
+                        <div class="progress-bar-fill" id="regProgress" style="width: 25%;"></div>
+                    </div>
+
+                    <!-- Step 1: Personal Info -->
+                    <div id="regStep1">
+                        <h4 style="margin-bottom: 1.5rem; font-size: 1.1rem;"><i class="fas fa-user-circle text-accent"></i> Personal Information</h4>
+                        <form id="regForm1" onsubmit="goToRegStep(2); return false;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Full Name <span class="required"></span></label>
+                                        <input type="text" class="form-control" id="regFullName" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">National ID / Passport <span class="required"></span></label>
+                                        <input type="text" class="form-control" id="regNationalId" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Date of Birth <span class="required"></span></label>
+                                        <input type="date" class="form-control" id="regDob" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Gender <span class="required"></span></label>
+                                        <select class="form-control form-select" id="regGender" required>
+                                            <option value="">Select Gender</option>
+                                            <option value="male">Male</option>
+                                            <option value="female">Female</option>
+                                            <option value="other">Other</option>
+                                            <option value="prefer_not_to_say">Prefer Not to Say</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Continue <i class="fas fa-arrow-right"></i></button>
+                        </form>
+                    </div>
+
+                    <!-- Step 2: Contact Info -->
+                    <div id="regStep2" style="display: none;">
+                        <h4 style="margin-bottom: 1.5rem; font-size: 1.1rem;"><i class="fas fa-address-card text-accent"></i> Contact Information</h4>
+                        <form id="regForm2" onsubmit="goToRegStep(3); return false;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Email Address <span class="required"></span></label>
+                                        <input type="email" class="form-control" id="regEmail" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Phone Number <span class="required"></span></label>
+                                        <input type="tel" class="form-control" id="regPhone" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Physical Address <span class="required"></span></label>
+                                <textarea class="form-control" id="regAddress" rows="3" required></textarea>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline flex-fill" onclick="goToRegStep(1)"><i class="fas fa-arrow-left"></i> Back</button>
+                                <button type="submit" class="btn btn-primary flex-fill">Continue <i class="fas fa-arrow-right"></i></button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Step 3: Account Security -->
+                    <div id="regStep3" style="display: none;">
+                        <h4 style="margin-bottom: 1.5rem; font-size: 1.1rem;"><i class="fas fa-lock text-accent"></i> Account Security</h4>
+                        <form id="regForm3" onsubmit="goToRegStep(4); return false;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Username <span class="required"></span></label>
+                                        <input type="text" class="form-control" id="regUsername" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Profile Photo</label>
+                                        <div class="drop-zone" onclick="document.getElementById('regPhoto').click()">
+                                            <i class="fas fa-cloud-upload-alt" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 0.5rem;"></i>
+                                            <p style="color: var(--text-muted); font-size: 0.85rem;">Click to upload photo</p>
+                                            <input type="file" id="regPhoto" accept="image/*" style="display: none;" onchange="handlePhotoUpload(this)">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password <span class="required"></span></label>
+                                <input type="password" class="form-control" id="regPassword" oninput="checkPasswordStrength(this.value)" required>
+                                <div class="password-strength"><div class="password-strength-fill" id="passwordStrength"></div></div>
+                                <small style="color: var(--text-muted); font-size: 0.75rem;">Min 12 chars, uppercase, lowercase, number, special char</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Confirm Password <span class="required"></span></label>
+                                <input type="password" class="form-control" id="regPasswordConfirm" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="d-flex align-items-start gap-2" style="cursor: pointer;">
+                                    <input type="checkbox" id="regTerms" required style="margin-top: 0.25rem;">
+                                    <span style="font-size: 0.85rem; color: var(--text-secondary);">I agree to the Terms of Service and Privacy Policy. I consent to biometric data collection for authentication purposes.</span>
+                                </label>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline flex-fill" onclick="goToRegStep(2)"><i class="fas fa-arrow-left"></i> Back</button>
+                                <button type="submit" class="btn btn-primary flex-fill">Continue <i class="fas fa-arrow-right"></i></button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Step 4: Biometric Enrollment -->
+                    <div id="regStep4" style="display: none;">
+                        <h4 style="margin-bottom: 1.5rem; font-size: 1.1rem;"><i class="fas fa-fingerprint text-accent"></i> Biometric Enrollment</h4>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="glass-panel p-4 text-center mb-3">
+                                    <h5 style="font-size: 0.95rem; margin-bottom: 1rem;"><i class="fas fa-eye"></i> Iris Scan Enrollment</h5>
+                                    <div class="biometric-scanner mb-3" style="width: 150px; height: 150px;">
+                                        <div class="scanner-ring"></div>
+                                        <div class="scanner-ring"></div>
+                                        <div class="scanner-laser"></div>
+                                        <i class="fas fa-eye" style="font-size: 2rem; color: var(--accent-400); z-index: 1;"></i>
+                                    </div>
+                                    <button class="btn btn-accent btn-sm" onclick="simulateEnrollIris()"><i class="fas fa-camera"></i> Capture Iris</button>
+                                    <p class="mt-2" style="font-size: 0.8rem; color: var(--text-muted);">Status: <span id="irisStatus" style="color: var(--warning);">Pending</span></p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="glass-panel p-4 text-center mb-3">
+                                    <h5 style="font-size: 0.95rem; margin-bottom: 1rem;"><i class="fas fa-fingerprint"></i> Fingerprint Enrollment</h5>
+                                    <div class="fingerprint-scan active mb-3" style="width: 120px; height: 150px;">
+                                        <div class="fingerprint-lines"></div>
+                                        <i class="fas fa-fingerprint fingerprint-icon" style="font-size: 4rem;"></i>
+                                    </div>
+                                    <button class="btn btn-accent btn-sm" onclick="simulateEnrollFingerprint()"><i class="fas fa-hand-pointer"></i> Scan Finger</button>
+                                    <p class="mt-2" style="font-size: 0.8rem; color: var(--text-muted);">Status: <span id="fingerprintStatus" style="color: var(--warning);">Pending</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info" style="font-size: 0.85rem;">
+                            <i class="fas fa-info-circle"></i> Your biometric data is encrypted using AES-256 and stored as mathematical templates. Raw biometric images are never stored.
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline flex-fill" onclick="goToRegStep(3)"><i class="fas fa-arrow-left"></i> Back</button>
+                            <button class="btn btn-primary flex-fill" onclick="completeRegistration()"><i class="fas fa-check-circle"></i> Complete Registration</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="auth-footer">
+                    <p>Already have an account? <a href="#" onclick="showLogin()">Sign In</a></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- FORGOT PASSWORD SCREEN -->
+        <div id="forgotPasswordScreen" class="auth-page" style="display: none;">
+            <div class="auth-container">
+                <div class="auth-logo">
+                    <i class="fas fa-shield-halved"></i>
+                    <h1 class="text-gradient">BIOSECURE</h1>
+                    <p>Password Recovery</p>
+                </div>
+
+                <div class="auth-card">
+                    <h2>Reset Password</h2>
+                    <p style="color: var(--text-muted); text-align: center; margin-bottom: 1.5rem;">Enter your email address and we'll send you a secure reset link</p>
+                    <form onsubmit="handleForgotPassword(event)">
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" class="form-control" placeholder="your@email.com" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100"><i class="fas fa-paper-plane"></i> Send Reset Link</button>
+                    </form>
+                    <div class="text-center mt-3">
+                        <a href="#" onclick="showLogin()" style="color: var(--primary-400); font-size: 0.9rem;"><i class="fas fa-arrow-left"></i> Back to Login</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" style="display: none;">
+        <div class="dashboard-wrapper">
+            <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <i class="fas fa-shield-halved"></i>
+                    <h3>BIOSECURE</h3>
+                </div>
+                <nav class="sidebar-nav">
+                    <div class="nav-section">
+                        <div class="nav-section-title">Main</div>
+                        <button class="nav-item active" onclick="showSection('overview')"><i class="fas fa-chart-line"></i><span>Overview</span></button>
+                        <button class="nav-item" onclick="showSection('myData')"><i class="fas fa-database"></i><span>My Data</span></button>
+                        <button class="nav-item" onclick="showSection('upload')"><i class="fas fa-cloud-upload-alt"></i><span>Upload Data</span></button>
+                        <button class="nav-item" onclick="showSection('activity')"><i class="fas fa-history"></i><span>Activity Logs</span></button>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-title">Security</div>
+                        <button class="nav-item" onclick="showSection('biometrics')"><i class="fas fa-fingerprint"></i><span>Biometrics</span></button>
+                        <button class="nav-item" onclick="showSection('security')"><i class="fas fa-shield-alt"></i><span>Security Settings</span></button>
+                        <button class="nav-item" onclick="showSection('sessions')"><i class="fas fa-desktop"></i><span>Active Sessions</span></button>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-title">Account</div>
+                        <button class="nav-item" onclick="showSection('profile')"><i class="fas fa-user-cog"></i><span>Profile</span></button>
+                        <button class="nav-item" onclick="showSection('backup')"><i class="fas fa-cloud-download-alt"></i><span>Backup &amp; Export</span></button>
+                    </div>
+                    <div class="nav-section" id="adminNav" style="display: none;">
+                        <div class="nav-section-title">Administration</div>
+                        <button class="nav-item" onclick="showSection('adminUsers')"><i class="fas fa-users"></i><span>User Management</span><span class="nav-badge">3</span></button>
+                        <button class="nav-item" onclick="showSection('adminLogs')"><i class="fas fa-clipboard-list"></i><span>Audit Logs</span></button>
+                        <button class="nav-item" onclick="showSection('adminSecurity')"><i class="fas fa-exclamation-triangle"></i><span>Security Events</span><span class="nav-badge">2</span></button>
+                        <button class="nav-item" onclick="showSection('adminBackup')"><i class="fas fa-hdd"></i><span>System Backup</span></button>
+                    </div>
+                </nav>
+                <div class="sidebar-footer">
+                    <div class="user-profile-mini">
+                        <div class="user-avatar-placeholder" id="userAvatar">JD</div>
+                        <div class="user-info">
+                            <div class="name" id="userName">John Doe</div>
+                            <div class="role" id="userRole">Standard User</div>
+                        </div>
+                        <button class="header-btn" style="width: 32px; height: 32px;" onclick="logout()"><i class="fas fa-sign-out-alt" style="font-size: 0.8rem;"></i></button>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                <header class="top-header">
+                    <div class="d-flex align-items-center gap-3">
+                        <button class="mobile-menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+                        <div class="header-search">
+                            <i class="fas fa-search"></i>
+                            <input type="text" placeholder="Search your data vault..." id="globalSearch">
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <button class="header-btn" onclick="showNotifications()"><i class="fas fa-bell"></i><span class="notification-dot"></span></button>
+                        <button class="header-btn" onclick="toggleTheme()"><i class="fas fa-moon"></i></button>
+                        <div style="width: 1px; height: 30px; background: var(--border-color);"></div>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="user-avatar-placeholder" style="width: 35px; height: 35px; font-size: 0.8rem;">JD</div>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="page-content">
+
+                    <!-- OVERVIEW -->
+                    <div id="section-overview">
+                        <div class="page-header">
+                            <h1>Dashboard Overview</h1>
+                            <p>Welcome back, <span class="text-accent">John Doe</span>. Your vault is secure.</p>
+                        </div>
+                        <div class="alert alert-success mb-4">
+                            <i class="fas fa-shield-check"></i>
+                            <div><strong>System Secure</strong> - All biometric authentications successful. Last login: <span class="mono">2026-06-11 10:45:22 UTC</span></div>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon cyan"><i class="fas fa-database"></i></div>
+                                <div class="stat-info"><div class="stat-value">24</div><div class="stat-label">Stored Records</div><div class="stat-change up"><i class="fas fa-arrow-up"></i> 3 new this week</div></div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon green"><i class="fas fa-shield-alt"></i></div>
+                                <div class="stat-info"><div class="stat-value">156</div><div class="stat-label">Security Checks</div><div class="stat-change up"><i class="fas fa-check"></i> 100% passed</div></div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon blue"><i class="fas fa-fingerprint"></i></div>
+                                <div class="stat-info"><div class="stat-value">42</div><div class="stat-label">Biometric Logins</div><div class="stat-change up"><i class="fas fa-arrow-up"></i> +12% vs last month</div></div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon purple"><i class="fas fa-clock"></i></div>
+                                <div class="stat-info"><div class="stat-value">8m 32s</div><div class="stat-label">Session Time</div><div class="stat-change down"><i class="fas fa-hourglass-half"></i> Auto-lock in 1m</div></div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="data-table-container">
+                                    <div class="data-table-header">
+                                        <h3><i class="fas fa-history text-accent"></i> Recent Activity</h3>
+                                        <button class="btn btn-sm btn-outline" onclick="showSection('activity')">View All</button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="data-table">
+                                            <thead><tr><th>Action</th><th>Method</th><th>IP Address</th><th>Time</th><th>Status</th></tr></thead>
+                                            <tbody>
+                                                <tr><td><i class="fas fa-sign-in-alt text-accent"></i> Login</td><td><span class="security-badge secure"><i class="fas fa-eye"></i> Iris + Fingerprint</span></td><td class="mono">192.168.1.105</td><td>10:45 AM</td><td><span class="status-badge success">Success</span></td></tr>
+                                                <tr><td><i class="fas fa-file-upload text-primary"></i> Upload</td><td><span class="security-badge encrypted"><i class="fas fa-lock"></i> AES-256</span></td><td class="mono">192.168.1.105</td><td>10:42 AM</td><td><span class="status-badge success">Success</span></td></tr>
+                                                <tr><td><i class="fas fa-edit text-warning"></i> Edit Record</td><td><span class="security-badge encrypted"><i class="fas fa-lock"></i> AES-256</span></td><td class="mono">192.168.1.105</td><td>10:38 AM</td><td><span class="status-badge success">Success</span></td></tr>
+                                                <tr><td><i class="fas fa-download text-info"></i> Download</td><td><span class="security-badge encrypted"><i class="fas fa-lock"></i> AES-256</span></td><td class="mono">192.168.1.105</td><td>Yesterday</td><td><span class="status-badge success">Success</span></td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="glass-panel p-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-bolt text-accent"></i> Quick Actions</h4>
+                                    <div class="d-flex flex-column gap-2">
+                                        <button class="btn btn-primary" onclick="showSection('upload')"><i class="fas fa-cloud-upload-alt"></i> Upload New Data</button>
+                                        <button class="btn btn-outline" onclick="showSection('myData')"><i class="fas fa-search"></i> Search Records</button>
+                                        <button class="btn btn-outline" onclick="exportData()"><i class="fas fa-file-export"></i> Export Data</button>
+                                        <button class="btn btn-outline" onclick="showSection('backup')"><i class="fas fa-cloud-download-alt"></i> Create Backup</button>
+                                    </div>
+                                    <hr style="border-color: var(--border-color); margin: 1.5rem 0;">
+                                    <h5 style="font-size: 0.9rem; margin-bottom: 1rem;">Storage Usage</h5>
+                                    <div class="progress-bar mb-2"><div class="progress-bar-fill" style="width: 65%;"></div></div>
+                                    <div class="d-flex justify-content-between" style="font-size: 0.8rem; color: var(--text-muted);"><span>6.5 GB used</span><span>10 GB total</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MY DATA -->
+                    <div id="section-myData" style="display: none;">
+                        <div class="page-header">
+                            <h1>My Data Vault</h1>
+                            <p>Manage your encrypted personal records</p>
+                        </div>
+                        <div class="data-table-container">
+                            <div class="data-table-header">
+                                <div class="d-flex align-items-center gap-3">
+                                    <h3 style="margin: 0;">Stored Records</h3>
+                                    <select class="form-control form-select" style="width: 150px; font-size: 0.85rem;"><option>All Categories</option><option>Personal</option><option>Financial</option><option>Medical</option><option>Legal</option></select>
+                                </div>
+                                <div class="table-toolbar">
+                                    <div class="input-group" style="width: 250px;"><input type="text" class="form-control" placeholder="Search records..." style="font-size: 0.85rem;"><button class="btn btn-primary btn-sm"><i class="fas fa-search"></i></button></div>
+                                    <button class="btn btn-primary btn-sm" onclick="showSection('upload')"><i class="fas fa-plus"></i> Add New</button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead><tr><th><input type="checkbox"></th><th>Title</th><th>Category</th><th>Modified</th><th>Size</th><th>Security</th><th>Actions</th></tr></thead>
+                                    <tbody>
+                                        <tr><td><input type="checkbox"></td><td><div class="d-flex align-items-center gap-2"><i class="fas fa-file-pdf text-danger"></i><span>Passport_Scan_2026.pdf</span></div></td><td><span class="status-badge" style="background: rgba(59,130,246,0.15); color: #60a5fa;">Personal</span></td><td>Jun 10, 2026</td><td>2.4 MB</td><td><span class="security-badge encrypted"><i class="fas fa-lock"></i> AES-256</span></td><td><div class="d-flex gap-1"><button class="btn btn-sm btn-outline"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline" style="color: var(--danger);"><i class="fas fa-trash"></i></button></div></td></tr>
+                                        <tr><td><input type="checkbox"></td><td><div class="d-flex align-items-center gap-2"><i class="fas fa-file-medical text-success"></i><span>Medical_Records_Q2.pdf</span></div></td><td><span class="status-badge" style="background: rgba(16,185,129,0.15); color: #34d399;">Medical</span></td><td>Jun 8, 2026</td><td>5.1 MB</td><td><span class="security-badge encrypted"><i class="fas fa-lock"></i> AES-256</span></td><td><div class="d-flex gap-1"><button class="btn btn-sm btn-outline"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline" style="color: var(--danger);"><i class="fas fa-trash"></i></button></div></td></tr>
+                                        <tr><td><input type="checkbox"></td><td><div class="d-flex align-items-center gap-2"><i class="fas fa-file-invoice-dollar text-warning"></i><span>Tax_Documents_2025.xlsx</span></div></td><td><span class="status-badge" style="background: rgba(245,158,11,0.15); color: #fbbf24;">Financial</span></td><td>Jun 5, 2026</td><td>1.8 MB</td><td><span class="security-badge encrypted"><i class="fas fa-lock"></i> AES-256</span></td><td><div class="d-flex gap-1"><button class="btn btn-sm btn-outline"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline" style="color: var(--danger);"><i class="fas fa-trash"></i></button></div></td></tr>
+                                        <tr><td><input type="checkbox"></td><td><div class="d-flex align-items-center gap-2"><i class="fas fa-file-contract text-info"></i><span>Employment_Contract.pdf</span></div></td><td><span class="status-badge" style="background: rgba(139,92,246,0.15); color: #a78bfa;">Legal</span></td><td>May 28, 2026</td><td>890 KB</td><td><span class="security-badge encrypted"><i class="fas fa-lock"></i> AES-256</span></td><td><div class="d-flex gap-1"><button class="btn btn-sm btn-outline"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline" style="color: var(--danger);"><i class="fas fa-trash"></i></button></div></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- UPLOAD -->
+                    <div id="section-upload" style="display: none;">
+                        <div class="page-header"><h1>Upload Data</h1><p>Securely store your documents with AES-256 encryption</p></div>
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="glass-panel p-4">
+                                    <form id="uploadForm" onsubmit="handleUpload(event)">
+                                        <div class="form-group"><label class="form-label">Data Title <span class="required"></span></label><input type="text" class="form-control" placeholder="e.g., Medical Report 2026" required></div>
+                                        <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" rows="3" placeholder="Brief description..."></textarea></div>
+                                        <div class="row">
+                                            <div class="col-md-6"><div class="form-group"><label class="form-label">Category <span class="required"></span></label><select class="form-control form-select" required><option value="">Select Category</option><option value="personal">Personal</option><option value="financial">Financial</option><option value="medical">Medical</option><option value="legal">Legal</option><option value="employment">Employment</option><option value="education">Education</option><option value="other">Other</option></select></div></div>
+                                            <div class="col-md-6"><div class="form-group"><label class="form-label">Tags</label><input type="text" class="form-control" placeholder="important, 2026, confidential"></div></div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Upload File <span class="required"></span></label>
+                                            <div class="drop-zone" id="dropZone" onclick="document.getElementById('uploadFile').click()">
+                                                <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: var(--primary-500); margin-bottom: 1rem;"></i>
+                                                <h5 style="font-size: 1rem; margin-bottom: 0.5rem;">Drag &amp; Drop files here</h5>
+                                                <p style="color: var(--text-muted); font-size: 0.85rem;">or click to browse (Max 100MB)</p>
+                                                <input type="file" id="uploadFile" style="display: none;" onchange="handleFileSelect(this)">
+                                            </div>
+                                            <div id="filePreview" style="display: none; margin-top: 1rem;">
+                                                <div class="d-flex align-items-center gap-3 p-3" style="background: rgba(0,212,224,0.05); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
+                                                    <i class="fas fa-file" style="font-size: 1.5rem; color: var(--primary-500);"></i>
+                                                    <div class="flex-fill"><div style="font-weight: 500;" id="fileName">document.pdf</div><div style="font-size: 0.8rem; color: var(--text-muted);" id="fileSize">2.4 MB</div></div>
+                                                    <button type="button" class="btn btn-sm btn-outline" onclick="clearFile()"><i class="fas fa-times"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="alert alert-info" style="font-size: 0.85rem;"><i class="fas fa-shield-alt"></i> <strong>Security Note:</strong> Your file will be encrypted with AES-256-GCM before storage. Only you can decrypt and access this data.</div>
+                                        <div class="d-flex gap-2"><button type="button" class="btn btn-outline" onclick="showSection('myData')">Cancel</button><button type="submit" class="btn btn-primary"><i class="fas fa-lock"></i> Encrypt &amp; Upload</button></div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="glass-panel p-4">
+                                    <h5 style="margin-bottom: 1rem;"><i class="fas fa-info-circle text-accent"></i> Upload Guidelines</h5>
+                                    <ul style="color: var(--text-secondary); font-size: 0.85rem; padding-left: 1.2rem;">
+                                        <li class="mb-2">Maximum file size: 100MB per file</li>
+                                        <li class="mb-2">Supported formats: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, TXT</li>
+                                        <li class="mb-2">All files are encrypted at rest with AES-256</li>
+                                        <li class="mb-2">Files are scanned for malware before storage</li>
+                                        <li class="mb-2">Version history is maintained for all uploads</li>
+                                    </ul>
+                                    <hr style="border-color: var(--border-color); margin: 1.5rem 0;">
+                                    <h5 style="margin-bottom: 1rem;">Encryption Details</h5>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                                        <div class="d-flex justify-content-between mb-2"><span>Algorithm:</span><span class="mono text-accent">AES-256-GCM</span></div>
+                                        <div class="d-flex justify-content-between mb-2"><span>Key Derivation:</span><span class="mono text-accent">PBKDF2 (100k rounds)</span></div>
+                                        <div class="d-flex justify-content-between mb-2"><span>Hash:</span><span class="mono text-accent">SHA-512</span></div>
+                                        <div class="d-flex justify-content-between"><span>Storage:</span><span class="mono text-accent">Encrypted at Rest</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ACTIVITY LOGS -->
+                    <div id="section-activity" style="display: none;">
+                        <div class="page-header"><h1>Activity Logs</h1><p>Complete audit trail of your account activity</p></div>
+                        <div class="data-table-container">
+                            <div class="data-table-header"><h3 style="margin: 0;">Login History</h3><div class="table-toolbar"><button class="btn btn-sm btn-outline"><i class="fas fa-filter"></i> Filter</button><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i> Export</button></div></div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead><tr><th>Date &amp; Time</th><th>Action</th><th>Method</th><th>IP Address</th><th>Location</th><th>Device</th><th>Status</th></tr></thead>
+                                    <tbody>
+                                        <tr><td class="mono">2026-06-11 10:45:22</td><td><i class="fas fa-sign-in-alt text-accent"></i> Login</td><td><span class="security-badge secure">Iris + Fingerprint</span></td><td class="mono">192.168.1.105</td><td><i class="fas fa-map-marker-alt text-muted"></i> New York, US</td><td>Chrome / Windows</td><td><span class="status-badge success">Success</span></td></tr>
+                                        <tr><td class="mono">2026-06-11 08:30:15</td><td><i class="fas fa-sign-out-alt text-muted"></i> Logout</td><td><span class="security-badge secure">Session</span></td><td class="mono">192.168.1.105</td><td><i class="fas fa-map-marker-alt text-muted"></i> New York, US</td><td>Chrome / Windows</td><td><span class="status-badge success">Success</span></td></tr>
+                                        <tr><td class="mono">2026-06-10 14:22:08</td><td><i class="fas fa-sign-in-alt text-accent"></i> Login</td><td><span class="security-badge secure">Iris + Fingerprint</span></td><td class="mono">192.168.1.105</td><td><i class="fas fa-map-marker-alt text-muted"></i> New York, US</td><td>Chrome / Windows</td><td><span class="status-badge success">Success</span></td></tr>
+                                        <tr><td class="mono">2026-06-09 16:45:12</td><td><i class="fas fa-times-circle text-danger"></i> Failed Login</td><td><span class="security-badge" style="background: rgba(239,68,68,0.15); color: #f87171;">Password</span></td><td class="mono">203.0.113.45</td><td><i class="fas fa-map-marker-alt text-muted"></i> Unknown</td><td>Firefox / Linux</td><td><span class="status-badge failed">Failed</span></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECURITY SETTINGS -->
+                    <div id="section-security" style="display: none;">
+                        <div class="page-header"><h1>Security Settings</h1><p>Manage your authentication and security preferences</p></div>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="glass-panel p-4 mb-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-key text-accent"></i> Change Password</h4>
+                                    <form onsubmit="handlePasswordChange(event)">
+                                        <div class="form-group"><label class="form-label">Current Password</label><input type="password" class="form-control" required></div>
+                                        <div class="form-group"><label class="form-label">New Password</label><input type="password" class="form-control" required></div>
+                                        <div class="form-group"><label class="form-label">Confirm New Password</label><input type="password" class="form-control" required></div>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-sync-alt"></i> Update Password</button>
+                                    </form>
+                                </div>
+                                <div class="glass-panel p-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-mobile-alt text-accent"></i> Two-Factor Authentication</h4>
+                                    <div class="d-flex align-items-center justify-content-between mb-3"><div><div style="font-weight: 500;">Authenticator App</div><div style="font-size: 0.85rem; color: var(--text-muted);">Using Google Authenticator</div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" checked style="background-color: var(--success); border-color: var(--success);"></div></div>
+                                    <div class="d-flex align-items-center justify-content-between mb-3"><div><div style="font-weight: 500;">SMS Verification</div><div style="font-size: 0.85rem; color: var(--text-muted);">+1 (555) 0123</div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" style="background-color: var(--text-muted);"></div></div>
+                                    <div class="d-flex align-items-center justify-content-between"><div><div style="font-weight: 500;">Email Verification</div><div style="font-size: 0.85rem; color: var(--text-muted);">john.doe@email.com</div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" checked style="background-color: var(--success); border-color: var(--success);"></div></div>
+                                    <hr style="border-color: var(--border-color); margin: 1.5rem 0;">
+                                    <button class="btn btn-outline btn-sm"><i class="fas fa-key"></i> View Backup Codes</button>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="glass-panel p-4 mb-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-fingerprint text-accent"></i> Biometric Settings</h4>
+                                    <div class="d-flex align-items-center gap-3 mb-3 p-3" style="background: rgba(0,212,224,0.05); border-radius: var(--border-radius-sm);"><i class="fas fa-eye" style="font-size: 1.5rem; color: var(--accent-400);"></i><div class="flex-fill"><div style="font-weight: 500;">Iris Recognition</div><div style="font-size: 0.8rem; color: var(--success);"><i class="fas fa-check-circle"></i> Enrolled &amp; Active</div></div><button class="btn btn-sm btn-outline">Re-enroll</button></div>
+                                    <div class="d-flex align-items-center gap-3 mb-3 p-3" style="background: rgba(0,212,224,0.05); border-radius: var(--border-radius-sm);"><i class="fas fa-fingerprint" style="font-size: 1.5rem; color: var(--accent-400);"></i><div class="flex-fill"><div style="font-weight: 500;">Fingerprint</div><div style="font-size: 0.8rem; color: var(--success);"><i class="fas fa-check-circle"></i> Enrolled &amp; Active</div></div><button class="btn btn-sm btn-outline">Re-enroll</button></div>
+                                    <div class="d-flex align-items-center gap-3 p-3" style="background: rgba(0,212,224,0.05); border-radius: var(--border-radius-sm);"><i class="fas fa-passport" style="font-size: 1.5rem; color: var(--accent-400);"></i><div class="flex-fill"><div style="font-weight: 500;">WebAuthn / FIDO2</div><div style="font-size: 0.8rem; color: var(--warning);"><i class="fas fa-exclamation-circle"></i> Not Configured</div></div><button class="btn btn-sm btn-accent">Setup</button></div>
+                                </div>
+                                <div class="glass-panel p-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-shield-alt text-accent"></i> Security Preferences</h4>
+                                    <div class="d-flex align-items-center justify-content-between mb-3"><div><div style="font-weight: 500;">Login Notifications</div><div style="font-size: 0.85rem; color: var(--text-muted);">Email alert on new device login</div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" checked style="background-color: var(--success); border-color: var(--success);"></div></div>
+                                    <div class="d-flex align-items-center justify-content-between mb-3"><div><div style="font-weight: 500;">Session Timeout</div><div style="font-size: 0.85rem; color: var(--text-muted);">Auto-lock after 10 min inactivity</div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" checked style="background-color: var(--success); border-color: var(--success);"></div></div>
+                                    <div class="d-flex align-items-center justify-content-between"><div><div style="font-weight: 500;">Data Encryption</div><div style="font-size: 0.85rem; color: var(--text-muted);">AES-256 for all stored data</div></div><span class="security-badge encrypted"><i class="fas fa-lock"></i> Active</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PROFILE -->
+                    <div id="section-profile" style="display: none;">
+                        <div class="page-header"><h1>Profile Management</h1><p>Update your personal information and preferences</p></div>
+                        <div class="row">
+                            <div class="col-lg-4">
+                                <div class="glass-panel p-4 text-center">
+                                    <div style="position: relative; display: inline-block;">
+                                        <div class="user-avatar-placeholder" style="width: 120px; height: 120px; font-size: 2.5rem; margin: 0 auto 1rem;">JD</div>
+                                        <button style="position: absolute; bottom: 0; right: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--primary-600); border: 2px solid var(--bg-card); color: white; cursor: pointer;"><i class="fas fa-camera" style="font-size: 0.8rem;"></i></button>
+                                    </div>
+                                    <h4 style="margin-bottom: 0.25rem;">John Doe</h4>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;">john.doe@email.com</p>
+                                    <span class="status-badge active" style="margin-top: 0.5rem;">Active Account</span>
+                                    <hr style="border-color: var(--border-color); margin: 1.5rem 0;">
+                                    <div style="text-align: left; font-size: 0.85rem; color: var(--text-secondary);">
+                                        <div class="d-flex justify-content-between mb-2"><span>Member Since:</span><span class="mono">Jan 15, 2026</span></div>
+                                        <div class="d-flex justify-content-between mb-2"><span>Last Login:</span><span class="mono">Jun 11, 2026</span></div>
+                                        <div class="d-flex justify-content-between mb-2"><span>Account Type:</span><span>Standard User</span></div>
+                                        <div class="d-flex justify-content-between"><span>Data Stored:</span><span class="mono">24 records</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-8">
+                                <div class="glass-panel p-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-user-edit text-accent"></i> Edit Profile</h4>
+                                    <form onsubmit="handleProfileUpdate(event)">
+                                        <div class="row">
+                                            <div class="col-md-6"><div class="form-group"><label class="form-label">Full Name</label><input type="text" class="form-control" value="John Doe"></div></div>
+                                            <div class="col-md-6"><div class="form-group"><label class="form-label">Username</label><input type="text" class="form-control" value="johndoe2026" disabled></div></div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6"><div class="form-group"><label class="form-label">Email Address</label><input type="email" class="form-control" value="john.doe@email.com"></div></div>
+                                            <div class="col-md-6"><div class="form-group"><label class="form-label">Phone Number</label><input type="tel" class="form-control" value="+1 (555) 0123"></div></div>
+                                        </div>
+                                        <div class="form-group"><label class="form-label">Physical Address</label><textarea class="form-control" rows="3">123 Secure Street, Suite 456, New York, NY 10001</textarea></div>
+                                        <div class="d-flex gap-2"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button><button type="button" class="btn btn-outline" onclick="showSection('overview')">Cancel</button></div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BACKUP & EXPORT -->
+                    <div id="section-backup" style="display: none;">
+                        <div class="page-header"><h1>Backup &amp; Export</h1><p>Create backups and export your data securely</p></div>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="glass-panel p-4 mb-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-cloud-download-alt text-accent"></i> Create Backup</h4>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Create an encrypted backup of all your data. The backup will be AES-256 encrypted and stored securely.</p>
+                                    <div class="form-group"><label class="form-label">Backup Name</label><input type="text" class="form-control" placeholder="e.g., Monthly Backup June 2026"></div>
+                                    <div class="form-group"><label class="form-label">Backup Type</label><select class="form-control form-select"><option value="full">Full Backup (All Data)</option><option value="incremental">Incremental (Changes Only)</option><option value="differential">Differential (Since Last Full)</option></select></div>
+                                    <div class="alert alert-info" style="font-size: 0.85rem;"><i class="fas fa-info-circle"></i> Full backups include all your data, settings, and biometric templates.</div>
+                                    <button class="btn btn-primary w-100" onclick="createBackup()"><i class="fas fa-hdd"></i> Create Encrypted Backup</button>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="glass-panel p-4 mb-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-file-export text-accent"></i> Export Data</h4>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Export your data to common formats for offline use or sharing with authorized parties.</p>
+                                    <div class="d-flex flex-column gap-2">
+                                        <button class="btn btn-outline" onclick="exportToPDF()"><i class="fas fa-file-pdf text-danger"></i> Export to PDF</button>
+                                        <button class="btn btn-outline" onclick="exportToExcel()"><i class="fas fa-file-excel text-success"></i> Export to Excel</button>
+                                        <button class="btn btn-outline" onclick="exportToJSON()"><i class="fas fa-file-code text-info"></i> Export to JSON</button>
+                                        <button class="btn btn-outline" onclick="exportToCSV()"><i class="fas fa-file-csv text-warning"></i> Export to CSV</button>
+                                    </div>
+                                    <div class="alert alert-warning mt-3" style="font-size: 0.85rem;"><i class="fas fa-exclamation-triangle"></i> Exported files are decrypted. Store them securely and delete after use.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="data-table-container">
+                            <div class="data-table-header"><h3 style="margin: 0;">Backup History</h3></div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead><tr><th>Backup Name</th><th>Type</th><th>Size</th><th>Created</th><th>Status</th><th>Actions</th></tr></thead>
+                                    <tbody>
+                                        <tr><td><i class="fas fa-hdd text-accent"></i> Full Backup - June 2026</td><td><span class="status-badge" style="background: rgba(59,130,246,0.15); color: #60a5fa;">Full</span></td><td>6.5 GB</td><td>Jun 1, 2026</td><td><span class="status-badge success">Verified</span></td><td><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i></button></td></tr>
+                                        <tr><td><i class="fas fa-hdd text-accent"></i> Incremental - Week 3</td><td><span class="status-badge" style="background: rgba(245,158,11,0.15); color: #fbbf24;">Incremental</span></td><td>450 MB</td><td>May 22, 2026</td><td><span class="status-badge success">Verified</span></td><td><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i></button></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BIOMETRICS -->
+                    <div id="section-biometrics" style="display: none;">
+                        <div class="page-header"><h1>Biometric Management</h1><p>Manage your enrolled biometric templates</p></div>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="glass-panel p-4 text-center">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-eye text-accent"></i> Iris Recognition</h4>
+                                    <div class="biometric-scanner mb-3" style="width: 180px; height: 180px;"><div class="scanner-ring"></div><div class="scanner-ring"></div><div class="scanner-laser"></div><i class="fas fa-eye" style="font-size: 2.5rem; color: var(--accent-400); z-index: 1;"></i></div>
+                                    <div style="margin-bottom: 1rem;"><span class="status-badge success"><i class="fas fa-check-circle"></i> Enrolled</span></div>
+                                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Enrolled on: <span class="mono">Jan 15, 2026</span><br>Last verified: <span class="mono">Jun 11, 2026</span><br>Total verifications: <span class="mono">156</span></p>
+                                    <div class="d-flex gap-2 justify-content-center"><button class="btn btn-accent btn-sm"><i class="fas fa-sync-alt"></i> Re-enroll</button><button class="btn btn-outline btn-sm"><i class="fas fa-trash"></i> Remove</button></div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="glass-panel p-4 text-center">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-fingerprint text-accent"></i> Fingerprint</h4>
+                                    <div class="fingerprint-scan active mb-3" style="width: 150px; height: 180px; margin: 0 auto;"><div class="fingerprint-lines"></div><i class="fas fa-fingerprint fingerprint-icon" style="font-size: 5rem;"></i></div>
+                                    <div style="margin-bottom: 1rem;"><span class="status-badge success"><i class="fas fa-check-circle"></i> Enrolled</span></div>
+                                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Enrolled on: <span class="mono">Jan 15, 2026</span><br>Last verified: <span class="mono">Jun 11, 2026</span><br>Total verifications: <span class="mono">156</span></p>
+                                    <div class="d-flex gap-2 justify-content-center"><button class="btn btn-accent btn-sm"><i class="fas fa-sync-alt"></i> Re-enroll</button><button class="btn btn-outline btn-sm"><i class="fas fa-trash"></i> Remove</button></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel p-4 mt-4">
+                            <h4 style="margin-bottom: 1rem;"><i class="fas fa-info-circle text-accent"></i> Biometric Security Information</h4>
+                            <div class="row">
+                                <div class="col-md-4"><div class="text-center p-3"><i class="fas fa-lock" style="font-size: 2rem; color: var(--accent-400); margin-bottom: 0.5rem;"></i><h5 style="font-size: 0.95rem;">Template Encryption</h5><p style="font-size: 0.8rem; color: var(--text-muted);">AES-256 encrypted templates stored in secure enclave</p></div></div>
+                                <div class="col-md-4"><div class="text-center p-3"><i class="fas fa-shield-alt" style="font-size: 2rem; color: var(--accent-400); margin-bottom: 0.5rem;"></i><h5 style="font-size: 0.95rem;">Anti-Spoofing</h5><p style="font-size: 0.8rem; color: var(--text-muted);">Liveness detection prevents fake biometric attacks</p></div></div>
+                                <div class="col-md-4"><div class="text-center p-3"><i class="fas fa-user-shield" style="font-size: 2rem; color: var(--accent-400); margin-bottom: 0.5rem;"></i><h5 style="font-size: 0.95rem;">Privacy Protection</h5><p style="font-size: 0.8rem; color: var(--text-muted);">Raw images never stored; only mathematical templates</p></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ACTIVE SESSIONS -->
+                    <div id="section-sessions" style="display: none;">
+                        <div class="page-header"><h1>Active Sessions</h1><p>Manage your active login sessions across devices</p></div>
+                        <div class="glass-panel p-4 mb-4">
+                            <div class="d-flex align-items-center gap-3 p-3 mb-3" style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: var(--border-radius-sm);"><i class="fas fa-desktop" style="font-size: 1.5rem; color: var(--success);"></i><div class="flex-fill"><div style="font-weight: 500;">Current Session</div><div style="font-size: 0.85rem; color: var(--text-muted);">Chrome on Windows - 192.168.1.105</div></div><span class="status-badge success">Active</span></div>
+                            <div class="d-flex align-items-center gap-3 p-3 mb-3" style="background: rgba(0,212,224,0.05); border-radius: var(--border-radius-sm);"><i class="fas fa-mobile-alt" style="font-size: 1.5rem; color: var(--accent-400);"></i><div class="flex-fill"><div style="font-weight: 500;">iPhone 15 Pro</div><div style="font-size: 0.85rem; color: var(--text-muted);">Safari on iOS - 192.168.1.110</div></div><button class="btn btn-sm btn-outline" style="color: var(--danger);" onclick="terminateSession(this)"><i class="fas fa-times"></i> Revoke</button></div>
+                            <div class="d-flex align-items-center gap-3 p-3" style="background: rgba(0,212,224,0.05); border-radius: var(--border-radius-sm);"><i class="fas fa-laptop" style="font-size: 1.5rem; color: var(--accent-400);"></i><div class="flex-fill"><div style="font-weight: 500;">MacBook Pro</div><div style="font-size: 0.85rem; color: var(--text-muted);">Firefox on macOS - 192.168.1.115</div></div><button class="btn btn-sm btn-outline" style="color: var(--danger);" onclick="terminateSession(this)"><i class="fas fa-times"></i> Revoke</button></div>
+                        </div>
+                        <button class="btn btn-danger" onclick="terminateAllSessions()"><i class="fas fa-sign-out-alt"></i> Terminate All Other Sessions</button>
+                    </div>
+
+                    <!-- ADMIN: USER MANAGEMENT -->
+                    <div id="section-adminUsers" style="display: none;">
+                        <div class="page-header"><h1>User Management</h1><p>Manage system users and their access levels</p></div>
+                        <div class="data-table-container">
+                            <div class="data-table-header">
+                                <h3 style="margin: 0;">All Users</h3>
+                                <div class="table-toolbar">
+                                    <div class="input-group" style="width: 250px;"><input type="text" class="form-control" placeholder="Search users..." style="font-size: 0.85rem;"><button class="btn btn-primary btn-sm"><i class="fas fa-search"></i></button></div>
+                                    <button class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add User</button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last Login</th><th>Records</th><th>Actions</th></tr></thead>
+                                    <tbody>
+                                        <tr><td><div class="d-flex align-items-center gap-2"><div class="user-avatar-placeholder" style="width: 32px; height: 32px; font-size: 0.75rem;">JD</div><div><div style="font-weight: 500;">John Doe</div><div style="font-size: 0.8rem; color: var(--text-muted);">john.doe@email.com</div></div></div></td><td><span class="status-badge" style="background: rgba(59,130,246,0.15); color: #60a5fa;">User</span></td><td><span class="status-badge active">Active</span></td><td class="mono">Jun 11, 2026</td><td>24</td><td><div class="d-flex gap-1"><button class="btn btn-sm btn-outline"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline" style="color: var(--danger);"><i class="fas fa-lock"></i></button></div></td></tr>
+                                        <tr><td><div class="d-flex align-items-center gap-2"><div class="user-avatar-placeholder" style="width: 32px; height: 32px; font-size: 0.75rem;">AS</div><div><div style="font-weight: 500;">Alice Smith</div><div style="font-size: 0.8rem; color: var(--text-muted);">alice.smith@email.com</div></div></div></td><td><span class="status-badge" style="background: rgba(245,158,11,0.15); color: #fbbf24;">Admin</span></td><td><span class="status-badge active">Active</span></td><td class="mono">Jun 10, 2026</td><td>156</td><td><div class="d-flex gap-1"><button class="btn btn-sm btn-outline"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline" style="color: var(--danger);"><i class="fas fa-lock"></i></button></div></td></tr>
+                                        <tr><td><div class="d-flex align-items-center gap-2"><div class="user-avatar-placeholder" style="width: 32px; height: 32px; font-size: 0.75rem;">RJ</div><div><div style="font-weight: 500;">Robert Johnson</div><div style="font-size: 0.8rem; color: var(--text-muted);">robert.j@email.com</div></div></div></td><td><span class="status-badge" style="background: rgba(239,68,68,0.15); color: #f87171;">Security</span></td><td><span class="status-badge locked">Locked</span></td><td class="mono">Jun 8, 2026</td><td>89</td><td><div class="d-flex gap-1"><button class="btn btn-sm btn-outline"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline" style="color: var(--success);"><i class="fas fa-unlock"></i></button></div></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ADMIN: SECURITY EVENTS -->
+                    <div id="section-adminSecurity" style="display: none;">
+                        <div class="page-header"><h1>Security Events</h1><p>Monitor and respond to security incidents</p></div>
+                        <div class="stats-grid mb-4">
+                            <div class="stat-card"><div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div><div class="stat-info"><div class="stat-value">2</div><div class="stat-label">Critical Events</div></div></div>
+                            <div class="stat-card"><div class="stat-icon orange"><i class="fas fa-ban"></i></div><div class="stat-info"><div class="stat-value">5</div><div class="stat-label">Failed Logins (24h)</div></div></div>
+                            <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-lock"></i></div><div class="stat-info"><div class="stat-value">1</div><div class="stat-label">Locked Accounts</div></div></div>
+                        </div>
+                        <div class="data-table-container">
+                            <div class="data-table-header"><h3 style="margin: 0;">Security Events</h3><div class="table-toolbar"><button class="btn btn-sm btn-outline"><i class="fas fa-filter"></i> Filter</button><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i> Export</button></div></div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead><tr><th>Event</th><th>Severity</th><th>User</th><th>Description</th><th>Time</th><th>Status</th><th>Actions</th></tr></thead>
+                                    <tbody>
+                                        <tr><td><i class="fas fa-times-circle text-danger"></i> Failed Login</td><td><span class="status-badge" style="background: rgba(239,68,68,0.15); color: #f87171;">Critical</span></td><td>robert.j@email.com</td><td>5 consecutive failed login attempts</td><td class="mono">10:42 AM</td><td><span class="status-badge" style="background: rgba(245,158,11,0.15); color: #fbbf24;">Open</span></td><td><button class="btn btn-sm btn-outline"><i class="fas fa-check"></i> Resolve</button></td></tr>
+                                        <tr><td><i class="fas fa-user-lock text-warning"></i> Account Lock</td><td><span class="status-badge" style="background: rgba(245,158,11,0.15); color: #fbbf24;">High</span></td><td>robert.j@email.com</td><td>Account auto-locked after failed attempts</td><td class="mono">10:42 AM</td><td><span class="status-badge" style="background: rgba(245,158,11,0.15); color: #fbbf24;">Open</span></td><td><button class="btn btn-sm btn-outline"><i class="fas fa-check"></i> Resolve</button></td></tr>
+                                        <tr><td><i class="fas fa-key text-info"></i> Password Change</td><td><span class="status-badge" style="background: rgba(59,130,246,0.15); color: #60a5fa;">Low</span></td><td>john.doe@email.com</td><td>User changed account password</td><td class="mono">Yesterday</td><td><span class="status-badge success">Resolved</span></td><td><button class="btn btn-sm btn-outline" disabled><i class="fas fa-check"></i></button></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ADMIN: SYSTEM BACKUP -->
+                    <div id="section-adminBackup" style="display: none;">
+                        <div class="page-header"><h1>System Backup</h1><p>Manage system-wide backups and recovery</p></div>
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="glass-panel p-4 mb-4">
+                                    <h4 style="margin-bottom: 1.5rem;"><i class="fas fa-hdd text-accent"></i> Create System Backup</h4>
+                                    <div class="row">
+                                        <div class="col-md-6"><div class="form-group"><label class="form-label">Backup Name</label><input type="text" class="form-control" placeholder="e.g., Weekly Full Backup"></div></div>
+                                        <div class="col-md-6"><div class="form-group"><label class="form-label">Backup Type</label><select class="form-control form-select"><option>Full System Backup</option><option>Database Only</option><option>User Data Only</option><option>Configuration Only</option></select></div></div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Encryption</label>
+                                        <div class="d-flex gap-3">
+                                            <label class="d-flex align-items-center gap-2" style="cursor: pointer;"><input type="radio" name="backupEncrypt" checked style="accent-color: var(--primary-500);"><span style="font-size: 0.9rem;">AES-256 Encryption</span></label>
+                                            <label class="d-flex align-items-center gap-2" style="cursor: pointer;"><input type="radio" name="backupEncrypt" style="accent-color: var(--primary-500);"><span style="font-size: 0.9rem;">No Encryption</span></label>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="createSystemBackup()"><i class="fas fa-play"></i> Start Backup</button>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="glass-panel p-4">
+                                    <h5 style="margin-bottom: 1rem;"><i class="fas fa-chart-pie text-accent"></i> Storage Overview</h5>
+                                    <div style="margin-bottom: 1.5rem;"><div class="d-flex justify-content-between mb-1" style="font-size: 0.85rem;"><span>User Data</span><span>45.2 GB</span></div><div class="progress-bar"><div class="progress-bar-fill" style="width: 60%;"></div></div></div>
+                                    <div style="margin-bottom: 1.5rem;"><div class="d-flex justify-content-between mb-1" style="font-size: 0.85rem;"><span>System Files</span><span>12.8 GB</span></div><div class="progress-bar"><div class="progress-bar-fill" style="width: 25%;"></div></div></div>
+                                    <div style="margin-bottom: 1.5rem;"><div class="d-flex justify-content-between mb-1" style="font-size: 0.85rem;"><span>Backups</span><span>8.4 GB</span></div><div class="progress-bar"><div class="progress-bar-fill" style="width: 15%;"></div></div></div>
+                                    <hr style="border-color: var(--border-color); margin: 1rem 0;">
+                                    <div class="d-flex justify-content-between" style="font-size: 0.9rem; font-weight: 600;"><span>Total Storage</span><span class="mono text-accent">66.4 GB</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ADMIN: AUDIT LOGS -->
+                    <div id="section-adminLogs" style="display: none;">
+                        <div class="page-header"><h1>Audit Logs</h1><p>System-wide audit trail for compliance and monitoring</p></div>
+                        <div class="data-table-container">
+                            <div class="data-table-header"><h3 style="margin: 0;">System Audit Trail</h3><div class="table-toolbar"><button class="btn btn-sm btn-outline"><i class="fas fa-filter"></i> Filter</button><button class="btn btn-sm btn-outline"><i class="fas fa-download"></i> Export</button></div></div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Resource</th><th>IP Address</th><th>Result</th></tr></thead>
+                                    <tbody>
+                                        <tr><td class="mono">2026-06-11 10:45:22</td><td>john.doe@email.com</td><td><i class="fas fa-sign-in-alt text-accent"></i> LOGIN</td><td>Authentication Service</td><td class="mono">192.168.1.105</td><td><span class="status-badge success">SUCCESS</span></td></tr>
+                                        <tr><td class="mono">2026-06-11 10:42:15</td><td>john.doe@email.com</td><td><i class="fas fa-upload text-primary"></i> DATA_UPLOAD</td><td>User Data Storage</td><td class="mono">192.168.1.105</td><td><span class="status-badge success">SUCCESS</span></td></tr>
+                                        <tr><td class="mono">2026-06-11 10:38:33</td><td>john.doe@email.com</td><td><i class="fas fa-edit text-warning"></i> DATA_UPDATE</td><td>Record #1024</td><td class="mono">192.168.1.105</td><td><span class="status-badge success">SUCCESS</span></td></tr>
+                                        <tr><td class="mono">2026-06-11 09:15:00</td><td>system</td><td><i class="fas fa-sync text-info"></i> BACKUP_CREATED</td><td>System Backup</td><td class="mono">127.0.0.1</td><td><span class="status-badge success">SUCCESS</span></td></tr>
+                                        <tr><td class="mono">2026-06-10 16:45:12</td><td>unknown</td><td><i class="fas fa-times text-danger"></i> LOGIN_FAILED</td><td>Authentication Service</td><td class="mono">203.0.113.45</td><td><span class="status-badge failed">FAILED</span></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Application Logic -->
+    <script src="assets/js/biosecure-app.js"></script>
+</body>
+</html>
